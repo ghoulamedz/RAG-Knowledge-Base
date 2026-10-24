@@ -1,0 +1,265 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Knowledge Base — RAG Assistant</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+    <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+    <script src="https://unpkg.com/babel-standalone@7/babel.min.js"></script>
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <style>
+        * { font-family: "Inter", -apple-system, sans-serif; }
+        .glass { background: rgba(24, 24, 27, 0.6); backdrop-filter: blur(12px); border: 1px solid rgba(255,255,255,0.08); }
+        .glass-light { background: rgba(255,255,255,0.7); backdrop-filter: blur(12px); border: 1px solid rgba(0,0,0,0.06); }
+        .card-hover { transition: all 0.3s ease; }
+        .card-hover:hover { transform: translateY(-2px); box-shadow: 0 20px 40px rgba(0,0,0,0.15); }
+        .gradient-text { background: linear-gradient(135deg, #6366f1, #a855f7, #ec4899); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+    </style>
+</head>
+<body class="bg-neutral-950 text-white">
+    <div id="root"></div>
+    <script type="text/babel">
+        const { useState, useEffect, useRef } = React;
+        const { Search, Plus, FileText, MessageSquare, Settings, Menu, X, Send, Paperclip, Upload, Moon, Sun, ChevronRight, ChevronDown, File, Hash, MessageCircle, AlertCircle, CheckCircle, Library, Clock, Zap } = lucide;
+
+        const demoDocs = [
+            { id: 1, title: "Product Roadmap Q4 2025", type: "PDF", size: "2.4 MB", date: "2025-10-01", color: "bg-orange-500/20", icon: "📄" },
+            { id: 2, title: "API Documentation v2.1", type: "Markdown", size: "456 KB", date: "2025-09-28", color: "bg-blue-500/20", icon: "📝" },
+            { id: 3, title: "Onboarding Guide", type: "PDF", size: "1.8 MB", date: "2025-09-15", color: "bg-emerald-500/20", icon: "📖" },
+            { id: 4, title: "System Architecture", type: "Image", size: "2.1 MB", date: "2025-09-10", color: "bg-purple-500/20", icon: "📊" },
+            { id: 5, title: "Customer Success Playbook", type: "PDF", size: "5.2 MB", date: "2025-09-01", color: "bg-red-500/20", icon: "📕" },
+        ];
+
+        const responses = [
+            "Based on the **Product Roadmap Q4 2025**, we are focusing on three main pillars: AI integration, performance optimization, and developer experience improvements.",
+            "The **API Documentation v2.1** introduces breaking changes to the authentication flow. Please review the migration guide before upgrading.",
+            "Per the **Onboarding Guide**, new engineers should complete the security training before accessing internal tools.",
+            "The system uses a **microservices architecture** with gRPC for internal communication and REST for external APIs.",
+            "The **System Architecture** uses Kubernetes for orchestration with Redis for caching and PostgreSQL for persistent storage.",
+        ];
+
+        function App() {
+            const [activeTab, setActiveTab] = useState("chat");
+            const [sidebarOpen, setSidebarOpen] = useState(true);
+            const [messages, setMessages] = useState([{ role: "assistant", content: "Hello! I am your RAG assistant. Ask me anything about your knowledge base documents.", timestamp: new Date() }]);
+            const [input, setInput] = useState("");
+            const [isTyping, setIsTyping] = useState(false);
+            const [searchQuery, setSearchQuery] = useState("");
+            const [searchResults, setSearchResults] = useState([]);
+            const [selectedDocs, setSelectedDocs] = useState([]);
+            const messagesEndRef = useRef(null);
+
+            useEffect(() => { lucide.createIcons(); });
+            useEffect(() => { messagesEndRef.current?.scrollIntoView({ behavior: "smooth" }); });
+
+            const handleSendMessage = async () => {
+                if (!input.trim()) return;
+                setMessages(prev => [...prev, { role: "user", content: input, timestamp: new Date() }]);
+                setInput("");
+                setIsTyping(true);
+                setTimeout(() => {
+                    const response = responses[Math.floor(Math.random() * responses.length)];
+                    setMessages(prev => [...prev, { role: "assistant", content: response, timestamp: new Date() }]);
+                    setIsTyping(false);
+                }, 1500);
+            };
+
+            const handleSearch = (e) => {
+                e.preventDefault();
+                if (!searchQuery.trim()) { setSearchQuery(""); setSearchResults([]); return; }
+                setSearchQuery(searchQuery);
+                setSearchResults(demoDocs.filter(d => d.title.toLowerCase().includes(searchQuery.toLowerCase())));
+            };
+
+            const handleFileUpload = () => {
+                const file = document.getElementById("fileInput").files[0];
+                if (file) {
+                    const newDoc = { id: demoDocs.length + 1, title: file.name, type: file.type.split("/")[0] === "application" ? file.type : "PDF", size: (file.size / 1024 / 1024).toFixed(2) + " MB", date: new Date().toISOString().split("T")[0], color: "bg-gray-500/20", icon: "📎" };
+                    setSelectedDocs(prev => [...prev, newDoc]);
+                    setMessages(prev => [...prev, { role: "assistant", content: "✅ " + file.name + " uploaded successfully!", timestamp: new Date() }]);
+                }
+            };
+
+            const tabs = [
+                { id: "chat", label: "Chat", icon: MessageSquare },
+                { id: "search", label: "Search", icon: Search },
+                { id: "docs", label: "Documents", icon: FileText },
+                { id: "settings", label: "Settings", icon: Settings },
+            ];
+
+            return (
+                <div className="h-screen flex flex-col">
+                    <header className="glass-light h-14 border-b flex items-center justify-between px-4">
+                        <div className="flex items-center gap-3">
+                            <button onClick={() => setSidebarOpen(!sidebarOpen)} className="p-2 rounded-lg hover:bg-neutral-200/50 dark:hover:bg-neutral-800/50"><Menu size={20} /></button>
+                            <div className="flex items-center gap-2">
+                                <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-indigo-500 via-purple-500 to-pink-500 flex items-center justify-center font-bold text-white text-lg">KB</div>
+                                <span className="font-semibold text-lg gradient-text">Knowledge Base</span>
+                            </div>
+                        </div>
+                        <div className="flex items-center gap-2">
+                            <button className="p-2 rounded-lg hover:bg-neutral-200/50 dark:hover:bg-neutral-800/50"><Upload size={20} /></button>
+                            <button className="p-2 rounded-lg hover:bg-neutral-200/50 dark:hover:bg-neutral-800/50"><MessageCircle size={20} /></button>
+                        </div>
+                    </header>
+                    <div className="flex flex-1 overflow-hidden">
+                        {sidebarOpen && (
+                            <aside className="w-64 glass-light border-r flex flex-col">
+                                <div className="p-4">
+                                    <h3 className="text-xs font-semibold text-neutral-500 uppercase tracking-wider mb-3">Sources</h3>
+                                    <div className="space-y-1">
+                                        {demoDocs.map(doc => (
+                                            <button key={doc.id} onClick={() => setSearchQuery(doc.title)} className="w-full text-left px-3 py-2 rounded-lg hover:bg-neutral-200/50 dark:hover:bg-neutral-800/50 flex items-center gap-3 text-sm text-neutral-600 dark:text-neutral-400">
+                                                <span className="text-lg">{doc.icon}</span><span className="truncate">{doc.title}</span>
+                                            </button>
+                                        ))}
+                                    </div>
+                                </div>
+                                <div className="p-4 border-t">
+                                    <h3 className="text-xs font-semibold text-neutral-500 uppercase tracking-wider mb-3">Collections</h3>
+                                    <div className="space-y-1">
+                                        <button className="w-full text-left px-3 py-2 rounded-lg bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 text-sm font-medium">Engineering</button>
+                                        <button className="w-full text-left px-3 py-2 rounded-lg hover:bg-neutral-200/50 dark:hover:bg-neutral-800/50 flex items-center gap-3 text-sm text-neutral-600 dark:text-neutral-400"><span className="text-lg">📂</span><span>Marketing</span></button>
+                                        <button className="w-full text-left px-3 py-2 rounded-lg hover:bg-neutral-200/50 dark:hover:bg-neutral-800/50 flex items-center gap-3 text-sm text-neutral-600 dark:text-neutral-400"><span className="text-lg">📂</span><span>Finance</span></button>
+                                    </div>
+                                </div>
+                                <div className="p-4 border-t">
+                                    <div className="p-3 rounded-lg bg-gradient-to-br from-indigo-500/10 to-purple-500/10 border border-indigo-500/20">
+                                        <p className="text-xs text-neutral-500">📊 <strong>5 documents</strong> indexed</p>
+                                        <p className="text-xs text-neutral-500 mt-1">🔍 <strong>1,234 chunks</strong> ready</p>
+                                    </div>
+                                </div>
+                            </aside>
+                        )}
+                        <main className="flex-1 flex flex-col">
+                            <div className="flex border-b border-neutral-200/50 dark:border-neutral-800">
+                                {tabs.map(tab => {
+                                    const Icon = tab.icon;
+                                    return (
+                                        <button key={tab.id} onClick={() => setActiveTab(tab.id)} className={`flex-1 px-4 py-3 flex items-center justify-center gap-2 text-sm font-medium transition-colors ${activeTab === tab.id ? "bg-neutral-100 dark:bg-neutral-800/50 text-neutral-900 dark:text-white border-b-2 border-indigo-500" : "text-neutral-500 hover:text-neutral-700 dark:hover:text-neutral-300"}`}>
+                                            <Icon size={16} />{tab.label}
+                                        </button>
+                                    );
+                                })}
+                            </div>
+                            <div className="flex-1 overflow-hidden">
+                                {activeTab === "chat" && (
+                                    <div className="flex flex-col h-full">
+                                        <div className="flex-1 overflow-y-auto p-4 space-y-4">
+                                            {messages.map((msg, i) => (
+                                                <div key={i} className={`flex ${msg.role === "user" ? "justify-end" : "justify-start"}`}>
+                                                    <div className={`max-w-[70%] rounded-2xl px-5 py-3 ${msg.role === "user" ? "bg-indigo-600 text-white rounded-br-sm" : "glass-light rounded-tl-sm"}`}>
+                                                        <p className="text-sm leading-relaxed whitespace-pre-wrap">{msg.content}</p>
+                                                        <p className="text-[10px] text-neutral-400 mt-1">{msg.timestamp.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}</p>
+                                                    </div>
+                                                </div>
+                                            ))}
+                                            {isTyping && (
+                                                <div className="flex justify-start">
+                                                    <div className="glass-light rounded-2xl rounded-tl-sm px-5 py-4">
+                                                        <div className="flex gap-1">
+                                                            <span className="w-2 h-2 bg-neutral-400 rounded-full animate-bounce" style={{ animationDelay: "0ms" }}></span>
+                                                            <span className="w-2 h-2 bg-neutral-400 rounded-full animate-bounce" style={{ animationDelay: "150ms" }}></span>
+                                                            <span className="w-2 h-2 bg-neutral-400 rounded-full animate-bounce" style={{ animationDelay: "300ms" }}></span>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            )}
+                                        </div>
+                                        <div className="p-4 border-t border-neutral-200/50 dark:border-neutral-800">
+                                            <form onSubmit={handleSendMessage} className="flex gap-2">
+                                                <input type="text" value={input} onChange={(e) => setInput(e.target.value)} placeholder="Ask a question about your documents..." className="flex-1 px-4 py-3 rounded-xl bg-neutral-100 dark:bg-neutral-800/50 border border-neutral-200 dark:border-neutral-700 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 outline-none transition-all placeholder:text-neutral-400" />
+                                                <button type="button" onClick={handleSendMessage} className="p-3 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white transition-all shadow-lg shadow-indigo-500/20"><Send size={20} /></button>
+                                            </form>
+                                        </div>
+                                    </div>
+                                )}
+                                {activeTab === "search" && (
+                                    <div className="p-8">
+                                        <div className="mb-6">
+                                            <form onSubmit={handleSearch} className="relative">
+                                                <input type="text" value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} placeholder="Search documents..." className="w-full px-5 py-4 pr-12 rounded-2xl bg-neutral-100 dark:bg-neutral-800/50 border border-neutral-200 dark:border-neutral-700 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 outline-none transition-all placeholder:text-neutral-400 text-lg" />
+                                                <button type="submit" className="absolute right-3 top-1/2 -translate-y-1/2 p-2 rounded-lg bg-indigo-600 text-white hover:bg-indigo-500 transition-all"><Search size={18} /></button>
+                                            </form>
+                                        </div>
+                                        <div className="space-y-3">
+                                            {searchResults.length === 0 ? (
+                                                <div className="text-center text-neutral-500 py-12"><Search size={48} className="mx-auto mb-3 opacity-30" /><p>Search for documents to get started</p></div>
+                                            ) : (
+                                                searchResults.map(doc => (
+                                                    <div key={doc.id} className="glass-light rounded-xl p-4 flex items-center gap-4 card-hover cursor-pointer" onClick={() => { setActiveTab("chat"); setSearchQuery(doc.title); }}>
+                                                        <span className="text-2xl">{doc.icon}</span>
+                                                        <div className="flex-1"><p className="font-medium">{doc.title}</p><p className="text-xs text-neutral-500">{doc.type} • {doc.size} • {doc.date}</p></div>
+                                                    </div>
+                                                ))
+                                            )}
+                                        </div>
+                                    </div>
+                                )}
+                                {activeTab === "docs" && (
+                                    <div className="p-8">
+                                        <div className="flex items-center justify-between mb-6">
+                                            <h2 className="text-xl font-semibold">Documents</h2>
+                                            <button onClick={handleFileUpload} className="px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-sm font-medium transition-all flex items-center gap-2"><Plus size={16} />Upload</button>
+                                        </div>
+                                        <input type="file" id="fileInput" onChange={handleFileUpload} className="hidden" />
+                                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                                            {selectedDocs.length === 0 && <p className="text-neutral-500 text-sm">No documents uploaded yet. Click "Upload" to add files.</p>}
+                                            {selectedDocs.map(doc => (
+                                                <div key={doc.id} className="glass-light rounded-xl p-4 flex items-center gap-4 card-hover cursor-pointer">
+                                                    <span className="text-2xl">{doc.icon}</span>
+                                                    <div className="flex-1"><p className="font-medium truncate">{doc.title}</p><p className="text-xs text-neutral-500">{doc.type} • {doc.size}</p></div>
+                                                    <button className="p-2 rounded-lg hover:bg-neutral-200/50 dark:hover:bg-neutral-800/50"><X size={16} /></button>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    </div>
+                                )}
+                                {activeTab === "settings" && (
+                                    <div className="p-8">
+                                        <h2 className="text-xl font-semibold mb-6">Settings</h2>
+                                        <div className="space-y-4">
+                                            <div className="glass-light rounded-xl p-6">
+                                                <h3 className="font-medium mb-2">API Configuration</h3>
+                                                <div className="space-y-2">
+                                                    <input type="text" placeholder="API URL (e.g., http://localhost:8000)" className="w-full px-3 py-2 rounded-lg bg-neutral-100 dark:bg-neutral-800/50 border border-neutral-200 dark:border-neutral-700 text-sm" defaultValue="http://localhost:8000" />
+                                                    <input type="text" placeholder="API Key" className="w-full px-3 py-2 rounded-lg bg-neutral-100 dark:bg-neutral-800/50 border border-neutral-200 dark:border-neutral-700 text-sm" defaultValue="rag-assistant-key-2025" />
+                                                </div>
+                                            </div>
+                                            <div className="glass-light rounded-xl p-6">
+                                                <h3 className="font-medium mb-2">Model Settings</h3>
+                                                <select className="w-full px-3 py-2 rounded-lg bg-neutral-100 dark:bg-neutral-800/50 border border-neutral-200 dark:border-neutral-700 text-sm">
+                                                    <option>OpenAI / Ollama</option>
+                                                    <option>HuggingFace</option>
+                                                    <option>Local LLM</option>
+                                                </select>
+                                            </div>
+                                            <div className="glass-light rounded-xl p-6">
+                                                <h3 className="font-medium mb-2">RAG Configuration</h3>
+                                                <div className="space-y-2">
+                                                    <label className="flex items-center gap-2 text-sm"><input type="checkbox" defaultChecked className="w-4 h-4 rounded bg-neutral-800 border-neutral-600" /> Enable semantic search</label>
+                                                    <label className="flex items-center gap-2 text-sm"><input type="checkbox" defaultChecked className="w-4 h-4 rounded bg-neutral-800 border-neutral-600" /> Enable keyword search</label>
+                                                    <label className="flex items-center gap-2 text-sm"><input type="checkbox" defaultChecked className="w-4 h-4 rounded bg-neutral-800 border-neutral-600" /> Store citations</label>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                )}
+                            </div>
+                        </main>
+                    </div>
+                    <div className="h-12 border-t border-neutral-200/50 dark:border-neutral-800 flex items-center px-4 gap-4 text-xs text-neutral-500">
+                        <span>🔒 All data stays on your device. No cloud uploads.</span>
+                        <span className="flex items-center gap-1"><CheckCircle size={14} /> Encrypted locally</span>
+                        <span className="flex items-center gap-1"><Zap size={14} /> Runs offline</span>
+                    </div>
+                </div>
+            );
+        }
+
+        ReactDOM.createRoot(document.getElementById("root")).render(<App />);
+    </script>
+</body>
+</html>
